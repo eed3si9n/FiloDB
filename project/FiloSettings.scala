@@ -4,16 +4,13 @@ import Keys._
 import com.typesafe.sbt.SbtMultiJvm
 import com.typesafe.sbt.SbtMultiJvm.MultiJvmKeys.MultiJvm
 import org.scalastyle.sbt.ScalastylePlugin
+import org.scalastyle.sbt.ScalastylePlugin.autoImport._
 import pl.project13.scala.sbt.JmhPlugin
 import sbtassembly.AssemblyPlugin.autoImport._
+import sbt.protocol.testing.TestResult
 
 /* Settings */
 object FiloSettings {
-  import ScalastylePlugin._
-
-  val buildSettings = Seq(
-    scalaVersion := "2.11.12")
-
   /* The REPL can’t cope with -Ywarn-unused:imports or -Xfatal-warnings
      so we disable for console */
   lazy val consoleSettings = Seq(
@@ -146,8 +143,16 @@ object FiloSettings {
     executeTests in Test := {
       val testResults = (executeTests in Test).value
       val multiNodeResults = (executeTests in MultiJvm).value
+
+      // https://github.com/sbt/sbt-zero-thirteen/blob/v0.13.17/testing/src/main/scala/sbt/TestFramework.scala
+      def intValue(result: TestResult): Int =
+        result match {
+          case TestResult.Passed => 0
+          case TestResult.Failed => 1
+          case TestResult.Error  => 2
+        }
       val overall =
-        if (testResults.overall.compare(multiNodeResults.overall) == -1)
+        if (intValue(testResults.overall).compare(intValue(multiNodeResults.overall)) == -1)
           multiNodeResults.overall
         else
           testResults.overall
@@ -168,7 +173,7 @@ object FiloSettings {
         Tests.Group(
           name = test.name,
           tests = Seq(test),
-          runPolicy = Tests.SubProcess(ForkOptions(runJVMOptions = Seq.empty[String])))
+          runPolicy = Tests.SubProcess(ForkOptions().withRunJVMOptions(Vector.empty)))
       }
 
     Seq(testGrouping in Test := ((definedTests in Test) map jvmPerTest).value)
@@ -262,32 +267,16 @@ object FiloSettings {
     assemblyJarName in assembly := s"gateway-${version.value}"
   )
 
-  lazy val publishSettings = Seq(
-    organizationName := "FiloDB",
-    publishMavenStyle := true,
-    publishArtifact in Test := false,
-    publishArtifact in IntegrationTest := false,
-    licenses += ("Apache-2.0", url("http://choosealicense.com/licenses/apache/")),
-    pomIncludeRepository := { x => false }
-  )
-
   lazy val moduleSettings = Seq(
     resolvers ++= Seq(
       "Velvia Bintray" at "https://dl.bintray.com/velvia/maven",
       "spray repo" at "http://repo.spray.io"
     ),
     resolvers += Resolver.bintrayRepo("tanukkii007", "maven"),
-
-    cancelable in Global := true,
-
-    incOptions := incOptions.value.withNameHashing(true),
-
-    ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) })
+  )
 
   lazy val commonSettings =
-    buildSettings ++
-      disciplineSettings ++
+    disciplineSettings ++
       moduleSettings ++
-      testSettings ++
-      publishSettings
+      testSettings
 }
