@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-set +e
-set -x
+set -e
+#set -x
 
 function showHelp {
         echo "`basename $0` [-h] [-c arg] [-l arg] [-p]"
